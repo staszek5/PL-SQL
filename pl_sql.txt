@@ -1,0 +1,1331 @@
+CREATE OR REPLACE PACKAGE BODY WB_KEGEL_DEV.WB_PCK_SALES_PROMOTION  AS 
+
+
+
+    C_PACKAGE CONSTANT  t_name := 'WB_PCK_SALES_PROMOTION';
+
+
+
+/**************************************************************************************************/
+/*Function returns package version                                                                */
+/**************************************************************************************************/
+FUNCTION ver(p_app_id  IN t_id) RETURN t_pck_ver
+IS
+ C_FUN CONSTANT t_name :='ver';
+ v_ver t_pck_ver;
+BEGIN
+   v_ver.version := '$Revision:  $';
+   v_ver.name    :=  C_PACKAGE  ;
+   v_ver.source  := '$Source:  $';
+   v_ver.date    := '$Date:  $';
+
+ return v_ver;
+
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,''); 
+     RAISE;
+END ver;
+
+
+
+/**************************************************************************************************/
+/*Function adds record into SA_SALES_PROMOTION. Returns id of new created record.        */
+/**************************************************************************************************/
+FUNCTION add(p_app_id  IN t_id,
+             p_saprom  IN t_saprom) RETURN t_id
+IS
+ C_FUN CONSTANT t_name :='add';
+ v_saprom  t_saprom := NULL ;
+BEGIN
+   wb_pck_log.debug(p_app_id,C_PACKAGE,C_FUN,'Entering add. '||to_string(p_app_id,p_saprom)); 
+
+  v_saprom := p_saprom;
+
+  /* get new id if neccesary */
+  if v_saprom.SAP_ID is null then
+      select SA_seq_SALES_PROMOTION.nextval into v_saprom.SAP_ID from dual;
+  end if;
+
+  /* insert record into table  */
+  insert into sa_sales_promotion
+  values v_saprom;
+
+  return v_saprom.SAP_ID;
+
+EXCEPTION
+     WHEN OTHERS THEN
+     
+      
+     RAISE;
+END add;
+
+
+
+/**************************************************************************************************/
+/*Function gets record from table SA_SALES_PROMOTION.                                   */
+/**************************************************************************************************/
+FUNCTION get(p_app_id  IN t_id,
+             p_saprom_id  IN t_id,
+             o_exists  OUT t_boolean) RETURN t_saprom
+IS
+ C_FUN CONSTANT t_name :='get';
+ v_saprom  t_saprom := NULL ;
+BEGIN
+     wb_pck_log.debug(p_app_id,C_PACKAGE,C_FUN,'Enetering get. Params: p_saprom_id='||nvl(p_saprom_id,-1)); 
+
+  o_exists := wb_pck_const.G_BTRUE;
+
+  begin
+
+       select *
+         into v_saprom
+         from sa_sales_promotion
+        where SAP_APP_ID = p_app_id
+          and SAP_ID =  p_saprom_id ;
+
+  exception
+  when NO_DATA_FOUND then
+      o_exists := wb_pck_const.G_BFALSE;
+  when OTHERS then
+      wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,'Unexpected error during select in get. Params: p_saprom_id='||nvl(p_saprom_id,-1)); 
+      RAISE;
+  end;
+ 
+  return v_saprom;
+ 
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,'Params: p_saprom_id='||nvl(p_saprom_id,-1)); 
+     RAISE;
+END get;
+
+
+
+/**************************************************************************************************/
+/*Function updates record in table SA_SALES_PROMOTION.                                   */
+/**************************************************************************************************/
+FUNCTION updated(p_app_id  IN t_id,
+                 p_saprom  IN t_saprom) RETURN t_id
+IS
+ C_FUN CONSTANT t_name :='updated';
+ v_saprom  t_saprom := NULL ;
+BEGIN
+     wb_pck_log.debug(p_app_id,C_PACKAGE,C_FUN,'Enetering get. Params: '||to_string(p_app_id,v_saprom)); 
+
+    v_saprom := p_saprom;
+
+   update sa_sales_promotion
+      set  ROW = v_saprom
+    where  SAP_APP_ID = p_app_id
+      and  SAP_ID     = v_saprom.SAP_ID;
+
+  return  v_saprom.SAP_ID;
+
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,'Params: '||to_string(p_app_id,v_saprom)); 
+     RAISE;
+END updated;
+
+
+
+/**************************************************************************************************/
+/*Function prints record from table SA_SALES_PROMOTION.                                   */
+/**************************************************************************************************/
+FUNCTION to_string(p_app_id IN t_id,
+                   p_saprom  IN t_saprom) RETURN VARCHAR2
+IS
+ C_FUN CONSTANT t_name :='to_string';
+ v_out wb_pck_types.t_desc := NULL ;
+BEGIN
+
+ v_out := 'SAP_ID=' || nvl(p_saprom.SAP_ID,-1) ||','; 
+
+ return v_out;
+
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,''); 
+     RAISE;
+END to_string;
+
+PROCEDURE get_sales_promotion_list(p_app_id in t_id,
+                                p_user_id in t_id,
+                                p_date_from in t_date,
+                                p_date_to in t_date,
+                                o_result out sys_refcursor)
+IS
+ C_FUN CONSTANT t_name :='get_sales_promotion_list';
+BEGIN
+
+ wb_pck_log.debug(p_app_id,C_PACKAGE,C_FUN); 
+ OPEN o_result FOR
+ 
+ SELECT
+        tabl.SAP_NAME AS sale_name,
+        tabl.SAP_DESCRIPTION AS sale_desc,
+        tabl.SAP_ID AS prom_id,
+        TRUNC( tabl.SAP_START_DATE) AS start_prom,
+        TRUNC(tabl.SAP_END_DATE)  AS end_prom
+ FROM 
+        SA_SALES_PROMOTION tabl
+        
+ WHERE
+        tabl.SAP_START_DATE >= p_date_from
+        AND tabl.SAP_END_DATE <= p_date_to
+        AND tabl.SAP_IS_ACTIVE = 1
+ ORDER BY start_prom DESC; 
+
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,''); 
+     RAISE;
+END get_sales_promotion_list;
+
+PROCEDURE validation_uploaded_promotion(p_app_id in t_id,
+                                        p_user_id in t_id,
+                                        p_promo in TPROMOTION,
+                                        p_pr_its in TPROMOITEMS,
+                                        o_wr_its_code out TPROMOITEMS,
+                                        o_its_collision out sys_refcursor,
+                                        val_err out VARCHAR2
+                                        )
+
+IS
+C_FUN CONSTANT t_name :='validation_uploaded_promotion';
+
+
+CURSOR pr_codes_cur IS -- promotion items cursor for a wrong codes
+   -- SELECT * from  TABLE (p_pr_its) promo_items;
+  
+   
+ SELECT * 
+    FROM   TABLE (p_pr_its) promo_items 
+    LEFT JOIN wb_products prod 
+        ON promo_items.SAPI_PR_CODE = prod.pr_code
+        WHERE      
+        prod.PR_CODE is null;
+        --AND prod.PR_IS_ACTIVE = 1;
+       --and promo_items.SAPI_IS_ACTIVE = 1
+
+is_prm_cd_cur BOOLEAN := FALSE; -- is pormotion cursor empty
+prom_item_idx NUMBER(10) := 1;-- index
+
+val_err_codes VARCHAR(100) := ''; -- validation errors codes
+
+/*
+TYPE err_tab IS TABLE OF VARCHAR(20)
+    INDEX BY BINARY_INTEGER;
+    
+val_err_tab err_tab;
+*/
+
+count_dup_items NUMBER(5);
+
+--o_wr_its_code TPROMOITEMS;
+wr_code_item TPROMOITEM;
+
+type rc is ref cursor;
+
+items_rc rc;
+--itm_coll TPROMOITEM;
+
+is_collision BOOLEAN := FALSE;
+
+type item_collision is record (
+    SAPI_ID NUMBER(10),
+    SAPI_PR_CODE varchar2(251 Byte),
+    SAPI_PR_PRICE number(10,2),
+    SAP_NAME VARCHAR2(255 Byte)    
+);
+
+itm_coll item_collision;
+
+
+
+BEGIN
+    wb_pck_log.debug (p_app_id, C_PACKAGE, C_FUN);
+
+    wr_code_item := wb_pck_util.init_tpromotion_item();
+    o_wr_its_code     := TPROMOITEMS ();
+
+    -- 1. sprawdzenie czy kody produktów są zgodne z bazą   
+      
+    wb_pck_log.debug(p_app_id, c_package, c_fun, 'VALIDATE PROMOTION >>>  ENTER');
+    
+    
+    --Open pr_codes_cur
+    FOR pr_code_rec IN pr_codes_cur
+  
+/*  
+    for pr_codes_cur in (SELECT *
+    FROM   TABLE (p_pr_its) promo_items LEFT JOIN wb_products prod ON promo_items.SAPI_PR_CODE = prod.pr_code
+    WHERE      promo_items.SAPI_IS_ACTIVE = 1
+    AND prod.PR_IS_ACTIVE = 1)
+    */
+    LOOP
+    
+    
+      wb_pck_log.debug(p_app_id, c_package, c_fun, 'VALIDATE PROMOTION >>>  start loop');
+      
+      wb_pck_log.debug(p_app_id, c_package, c_fun, '>>VALIDATE PROMOTION > WRONG ITEM CODE - pr_code_rec.SAPI_PR_CODE : ' || pr_code_rec.SAPI_PR_CODE );
+         
+        wr_code_item.SAPI_PR_CODE         := pr_code_rec.SAPI_PR_CODE;
+       -- wr_code_item.SAPI_APP_ID          := pr_code_rec.SAPI_APP_ID;
+        wr_code_item.SAPI_ID              := pr_code_rec.SAPI_ID;
+      --  wr_code_item.SAPI_IS_ACTIVE       := pr_code_rec.SAPI_IS_ACTIVE;
+        wr_code_item.SAPI_PR_PRICE        := pr_code_rec.SAPI_PR_PRICE;
+        wr_code_item.SAPI_SAP_ID          := pr_code_rec.SAPI_SAP_ID;
+
+
+        o_wr_its_code.EXTEND ();
+        o_wr_its_code (prom_item_idx)     := wr_code_item;
+
+        prom_item_idx                     := prom_item_idx + 1;
+
+        is_prm_cd_cur                     := TRUE;
+        
+         wb_pck_log.debug(p_app_id, c_package, c_fun, '>>VALIDATE PROMOTION > WRONG ITEM CODE - exit loop' );
+    END LOOP;
+
+    wb_pck_log.debug(p_app_id, c_package, c_fun, '>>VALIDATE PROMOTION > WRONG ITEM CODE - AFTER LOOP ');
+    
+    IF is_prm_cd_cur THEN
+        val_err     := 'WR_ITM_CODE';
+        --val_err_tab(1) := 'WR_ITM_CODE';
+    END IF;
+
+    wb_pck_log.debug(p_app_id, c_package, c_fun, '>>VALIDATE PROMOTION >val_err : ' || val_err);
+    
+   -- CLOSE pr_codes_cur;
+    
+    
+    -- 2. Sprawdzenie czy wsrod importowanych produktow wystepuja duplikaty
+    /*
+    SELECT COUNT(CODE) into count_dup_items from 
+        (select COUNT(SAPI_PR_CODE) CODE, SAPI_PR_CODE from table(p_pr_its) group by SAPI_PR_CODE HAVING COUNT(PR_CODE) > 2);
+    
+    IF count_dup_items > 0 THEN
+        val_err_codes := val_err_codes ;
+   
+    END if;
+    */
+    --
+    -- 3. Sprawdzenie czy produkty z importu występują na innych promocjach
+    open o_its_collision for 
+    WITH
+        input_promo_items as (
+            SELECT promo_items.*, promo.*
+            from table(p_pr_its) promo_items , sa_sales_promotion promo
+            WHERE promo_items.SAPI_SAP_ID = promo.SAP_ID
+            AND promo.SAP_IS_ACTIVE = 1 
+           -- AND promo_items.SAPI_IS_ACTIVE = 1
+        ),
+        db_promo_items as (
+            SELECT db_promo_items.*, db_promo.*
+            from sa_sales_promotion_items db_promo_items, sa_sales_promotion db_promo
+            WHERE db_promo_items.SAPI_SAP_ID = db_promo.SAP_ID
+            AND db_promo.SAP_IS_ACTIVE = 1
+            AND db_promo_items.SAPI_IS_ACTIVE = 1
+        )
+        SELECT INPI.SAPI_ID, INPI.SAPI_PR_CODE, INPI.SAPI_PR_PRICE, DBPI.SAP_NAME
+            FROM input_promo_items INPI, db_promo_items DBPI
+        WHERE INPI.SAPI_PR_CODE = DBPI.SAP_ID
+        AND (INPI.SAP_START_DATE NOT BETWEEN DBPI.SAP_START_DATE AND DBPI.SAP_END_DATE)
+        AND (INPI.SAP_END_DATE NOT BETWEEN DBPI.SAP_START_DATE AND DBPI.SAP_END_DATE)
+        AND NOT (INPI.SAP_START_DATE <= DBPI.SAP_END_DATE AND INPI.SAP_END_DATE >= DBPI.SAP_END_DATE)
+        ;
+       
+        --o_its_collision := items_rc;
+        wb_pck_log.debug(p_app_id, c_package, c_fun, '>>VALIDATE PROMOTION > after o_its_collision  ');
+        
+        LOOP 
+            FETCH o_its_collision INTO itm_coll;            
+            is_collision := TRUE;                 
+            EXIT WHEN is_collision;   
+            EXIT WHEN o_its_collision%NOTFOUND;            
+        End Loop;
+  
+        IF is_collision THEN
+            val_err := val_err || ', ITM_COLLISION';
+            --val_err_tab(2) := 'ITEM_COLLISION';
+        END IF;    
+   
+    ClOSE o_its_collision;
+    
+    wb_pck_log.debug(p_app_id, c_package, c_fun, '>>VALIDATE PROMOTION > after o_its_collision  ');
+    
+   -- 3 czy nazwy promocji sie nie duplikuja
+   
+    ---
+    
+    
+    
+    
+    ---
+    
+    
+    -- Testowanie procedury w bloku anonimowym
+      /*
+    DECLARE
+
+        p_promo TPROMOTION; -- init w util
+        p_pr_its TPROMOITEMS;
+
+        o_wr_its_code TPROMOITEMS;
+        o_its_collision SYS_REFCURSOR;
+        temp_input_promo_item TPROMOITEM;
+
+        --TYPE o_ref_cur IS REF CURSOR;
+
+        val_err VARCHAR2(100);
+
+    BEGIN
+
+        p_promo := wb_pck_util.init_tpromotion();
+        p_promo.SAP_NAME := 'ewfew';
+
+
+        temp_input_promo_item := wb_pck_util.init_tpromotion_item();
+        temp_input_promo_item.SAPI_PR_CODE := 'abc';
+
+        p_pr_its := TPROMOITEMS();
+
+        p_pr_its.extend();
+        p_pr_its(1) := temp_input_promo_item;
+
+        wb_pck_sales_promotion.validation_uploaded_promotion(81100, 1, p_promo, p_pr_its, o_wr_its_code, o_its_collision, val_err);
+
+    end;
+
+--wszystkie logi 
+--select * from vlog2;
+      
+      */        
+            
+    
+
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,''); 
+     RAISE;
+END validation_uploaded_promotion;
+
+PROCEDURE get_details_promotion_list(p_app_id in t_id,
+                                p_user_id in t_id,
+                                p_prom_name in t_name,
+                                o_result out sys_refcursor)
+IS
+ C_FUN CONSTANT t_name :='get_details_promotion_list';
+BEGIN
+
+ wb_pck_log.debug(p_app_id,C_PACKAGE,C_FUN); 
+ OPEN o_result FOR
+ 
+ SELECT
+        prom.SAP_NAME AS sale_name,
+        TRUNC( prom.SAP_START_DATE) AS start_prom,
+        TRUNC(prom.SAP_END_DATE)  AS end_prom,
+        prom_items.SAPI_PR_CODE AS pr_code,
+        prom_items.SAPI_PR_PRICE AS pr_price
+        
+ FROM 
+        SA_SALES_PROMOTION_ITEMS prom_items, SA_SALES_PROMOTION prom
+        
+ WHERE
+        prom.SAP_NAME LIKE p_prom_name
+        AND prom.SAP_ID = prom_items.SAPI_SAP_ID
+
+ ORDER BY start_prom DESC; 
+
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,''); 
+     RAISE;
+END get_details_promotion_list;
+
+
+
+PROCEDURE get_promotion_info(p_app_id in t_id,
+                             p_user_id in t_id,                     
+                             p_cu_grup in t_name,
+                             p_prom_name in t_name,
+                             p_cu_type in t_name,
+                             p_start_data in t_date,
+                             p_end_date in t_date,
+                             o_promotion out sys_refcursor)
+                             
+IS
+
+C_FUN CONSTANT t_name :='get_promotion_info';
+
+BEGIN
+
+    OPEN o_promotion For
+        Select sapc.* , 
+       cud.CUD_CU_ID,
+       cud.CUD_NAME as cu_name,
+       cud.CUD_SHORT_NAME,
+       cud.CUD_KEGEL_GROUP,
+       cud.CUD_KEGEL_CODE as cu_code,
+       cud.cud_cu_id as cu_id,
+       SAP.SAP_NAME as prom_name,
+       SAP.SAP_START_DATE as prom_start_date,
+       SAP.SAP_END_DATE as prom_end_date
+    from 
+    sa_sales_promotion_customers sapc,
+    CU_CUSTOMER_DETAILS cud,
+    sa_sales_promotion sap
+    where CUD.CUD_CU_ID = SAPC.SAPC_CU_ID
+    and SAP.SAP_ID = SAPC.SAPC_SAP_ID
+    and SAP.SAP_IS_ACTIVE = 1
+    and SAP.SAP_APP_ID = 81100 -- p_app_id
+   -- and SAP.SAP_START_DATE >= --p_start_date  or!
+   -- and SAP.SAP_END_DATE <= -- p_end_date
+    and CUD.CUD_IS_ACTIVE	= 1
+    and CUD.CUD_APP_ID	= 81100 -- p_app_id
+    and CUD.CUD_KEGEL_GROUP	= 'K'           --p_cu_group 
+    and cud.CUD_CUSTOMER_TYPE_ID is null --p_cu_type
+    and SAPC.SAPC_APP_ID = 81100 -- p_app_id
+    and SAPC.SAPC_IS_ACTIVE = 1;
+
+END;
+
+PROCEDURE get_promotion_detail_info(p_app_id in t_id,
+                             p_user_id in t_id,                     
+                             p_prom_id in t_id,
+                             o_promotion out TPROMOTION)
+                             
+IS
+
+C_FUN CONSTANT t_name :='get_promotion_detail_info';
+
+v_prom         t_saprom;
+v_exists       t_boolean;
+v_i            t_id;
+v_cust         TPROMOTIONCUST;
+v_item         TPROMOITEM;
+
+BEGIN
+
+wb_pck_log.debug(p_app_id,C_PACKAGE,C_FUN); 
+
+v_prom := WB_PCK_SALES_PROMOTION.get(p_app_id,p_prom_id,v_exists);
+
+if v_exists = wb_pck_const.G_BFALSE then
+        wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,'Promotion does not exists. id:'||o_promotion.SAP_ID);
+        wb_pck_util.raise_app_error(p_app_id,'Promotion does not exists. id:'||o_promotion.SAP_ID);
+    end if;
+
+o_promotion := WB_PCK_UTIL.init_tpromotion();
+
+o_promotion.SAP_ID := v_prom.SAP_ID;
+o_promotion.SAP_NAME := v_prom.SAP_NAME;
+o_promotion.SAP_DESCRIPTION := v_prom.SAP_DESCRIPTION;
+o_promotion.SAP_START_DATE := v_prom.SAP_START_DATE;
+o_promotion.SAP_END_DATE := v_prom.SAP_END_DATE;
+o_promotion.SAP_INVE_ID := v_prom.SAP_INVE_ID;
+o_promotion.SAP_G_FK_GROUP := v_prom.SAP_G_FK_GROUP;
+o_promotion.SAP_CU_TYPE_ID := v_prom.SAP_CU_TYPE_ID;
+
+wb_pck_log.debug(p_app_id,C_PACKAGE,C_FUN, 'inv :' || v_prom.SAP_INVE_ID || 'group : ' || v_prom.SAP_G_FK_GROUP || 'type : ' || v_prom.SAP_CU_TYPE_ID); 
+
+    v_i :=1;
+    o_promotion.promotion_customers := TPROMOTIONCUSTS();
+    for v_rec in 
+    (
+    SELECT 
+            promcust.SAPC_ID                sapcid,                    
+            promcust.SAPC_APP_ID            sapc_app_id,         
+            promcust.SAPC_CU_ID             custId,         
+            promcust.SAPC_SAP_ID            sapId,        
+            promcust.SAPC_IS_ACTIVE         isActive,    
+            promcust.SAPC_CREATE_DATE       createDate,
+            promcust.SAPC_MODIFIED_DATE     modifiedDate,
+            promcust.SAPC_NEXT_ID           nextId,
+            promcust.SAPC_IS_DELETED        isDel
+    FROM 
+            SA_SALES_PROMOTION_CUSTOMERS promcust
+            
+    WHERE
+            promcust.SAPC_SAP_ID = v_prom.SAP_ID
+            AND promcust.SAPC_IS_ACTIVE = 1
+            
+    ) LOOP
+            v_cust := WB_PCK_UTIL.init_TPROMOTIONCUST();
+            o_promotion.promotion_customers.extend();
+            v_cust.SAPC_ID := v_rec.sapcid;
+            v_cust.SAPC_APP_ID := v_rec.sapc_app_id;
+            v_cust.SAPC_CU_ID := v_rec.custId;
+            v_cust.SAPC_SAP_ID := v_rec.sapId;
+            v_cust.SAPC_IS_ACTIVE := v_rec.isActive;
+            v_cust.SAPC_CREATE_DATE := v_rec.createDate;
+            v_cust.SAPC_MODIFIED_DATE := v_rec.modifiedDate;
+            v_cust.SAPC_NEXT_ID := v_rec.nextId;
+            v_cust.sapc_is_deleted := v_rec.isDel;
+            
+            o_promotion.promotion_customers(v_i) := v_cust;
+            v_i := v_i + 1;             
+      END loop;
+      
+      v_i :=1;
+    o_promotion.promotion_items := TPROMOITEMS();
+    for v_rec in 
+    (
+    SELECT 
+            prod.SAPI_ID                    sapiid,                    
+            prod.SAPI_SAP_ID                sapi_app_id,         
+            prod.SAPI_APP_ID                appId,         
+            prod.SAPI_PR_CODE               code,        
+            prod.SAPI_PR_PRICE              price,    
+            prod.SAPI_CREATE_DATE           createDate,
+            prod.SAPI_MODIFIED_DATE         modifiedDate,
+            prod.SAPI_NEXT_PROM_ITM_ID      nextId,
+            prod.SAPI_IS_ACTIVE             isActive,
+            prod.SAPI_IS_DELETED            isDel
+    FROM 
+            SA_SALES_PROMOTION_ITEMS prod
+            
+    WHERE
+            prod.SAPI_SAP_ID = v_prom.SAP_ID
+            AND prod.SAPI_IS_ACTIVE = 1
+            
+    ) LOOP
+            v_item := WB_PCK_UTIL.init_tpromotion_item();
+            o_promotion.promotion_items.extend();
+            v_item.SAPI_ID                  := v_rec.sapiid;
+            v_item.SAPI_SAP_ID              := v_rec.sapi_app_id;
+            v_item.SAPI_APP_ID              := v_rec.appId;
+            v_item.SAPI_PR_CODE             := v_rec.code;
+            v_item.SAPI_PR_PRICE            := v_rec.price;
+            v_item.SAPI_CREATE_DATE         := v_rec.createDate;
+            v_item.SAPI_MODIFIED_DATE       := v_rec.modifiedDate;
+            v_item.SAPI_NEXT_PROM_ITM_ID    := v_rec.nextId;
+            v_item.SAPI_IS_ACTIVE           := v_rec.isActive;
+            v_item.SAPI_IS_DELETED          := v_rec.isDel;
+            
+            o_promotion.promotion_items(v_i) := v_item;
+            v_i := v_i + 1;             
+      END loop;
+
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,''); 
+     RAISE;
+END;
+
+/*
+PROCEDURE      return_invoice(p_app_id              in     t_id,
+                              p_user_id             in     t_id,
+                              o_invoice             in out tinvoice,
+                              o_invoice_items       out    sys_refcursor,
+                              o_contacts            out tcontacts
+                          )                                                    
+
+IS
+  C_FUN CONSTANT t_name :='return_invoice 22';
+  v_fop_id       t_id;
+  v_exists       t_boolean;
+  v_inv          t_inv;
+  v_add          t_add;
+  v_pe_id        t_id;
+  v_i            t_id;
+  vtcontacts     tcontacts;
+  v_invoice_item TINVOICE_ITEM;
+BEGIN
+    
+    o_contacts := tcontacts();
+
+    wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'BEGIN - return_invoice 22');
+    wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'o_invoice.id='||o_invoice.id);
+    
+    
+    
+    
+    v_inv := wb_pck_invoices.get(p_app_id, o_invoice.id, v_exists);
+     if v_exists = wb_pck_const.G_BFALSE then
+        wb_pck_log.error(p_app_id,C_PACKAGE,C_FUN,'Invoice does not exists. id:'||o_invoice.id);
+        wb_pck_util.raise_app_error(p_app_id,'Invoice does not exists. id:'||o_invoice.id);
+    end if;
+    wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'a');
+--    update_viewed_status(p_app_id  => p_app_id,
+--                         p_user_id => p_user_id,
+--                         p_inv_id  => o_invoice.id
+--                         );
+    wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'b');
+    
+    wb_pck_role_permission_vpd.check_vpd_get_on(p_app_id        => p_app_id,
+                                                p_user_id       => p_user_id,
+                                                p_obj_id        => o_invoice.id,
+                                                p_object_type   => v_inv.inv_oi_type);
+    
+    
+    o_invoice.version                       :=  v_inv.inv_version;
+    o_invoice.inv_type                      :=  v_inv.inv_oi_type;
+    o_invoice.id_correct                    :=  v_inv.inv_inv_id;
+    o_invoice.correct_code                  :=  v_inv.inv_iv_code_correct;
+    o_invoice.correction_other_cause        :=  v_inv.inv_cr_other_cause;
+    o_invoice.invnumber                     :=  v_inv.inv_number;
+    o_invoice.customer_id                   :=  v_inv.inv_cu_id_purch;
+    o_invoice.customer_name                 :=  wb_pck_customer_details.get_cud_name(p_app_id,v_inv.inv_cud_id_purch);
+    o_invoice.nip                           :=  wb_pck_customers.get_customer_tax_id(p_app_id,v_inv.inv_cu_id_purch);
+    o_invoice.inv_is_printed                :=  nvl(v_inv.inv_is_printed, 0);
+    o_invoice.status_code_add               := v_inv.INV_IV_CODE_STATUS_ADD;
+    o_invoice.gross_method                  := v_inv.INV_GROSS_METHOD;
+    
+    v_add := wb_pck_address_details.get(p_app_id,v_inv.inv_add_id_purch,v_exists);
+    wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'v_inv.inv_add_id_purch='||v_inv.inv_add_id_purch);
+    o_invoice.customer_main_address_id      := v_add.add_ad_id;
+    o_invoice.customer_main_address_name    := v_add.add_adressee;
+    o_invoice.customer_main_address_street  := v_add.add_street_name;
+    o_invoice.customer_main_address_bld_nr  := v_add.add_build_number;
+    o_invoice.customer_main_address_local_nr := v_add.add_local_number;
+    o_invoice.customer_main_address_zip     := v_add.add_zip_name;
+    o_invoice.customer_main_address_city    := v_add.add_city_name;   
+    o_invoice.customer_main_address_code    := v_add.add_state_name;
+    o_invoice.customer_main_address_country := v_add.add_country_name;
+    
+    
+    if(nvl(v_inv.inv_add_id_deliv,-1) != v_inv.inv_add_id_purch) then
+        
+        v_add := wb_pck_address_details.get(p_app_id,v_inv.inv_add_id_deliv,v_exists);
+        wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'v_inv.inv_add_id_deliv='||v_inv.inv_add_id_deliv);    
+        o_invoice.customer_bill_address_id      := v_add.add_ad_id;
+        o_invoice.customer_bill_address_name    := v_add.add_adressee;    
+        o_invoice.customer_bill_address_street  := v_add.add_street_name;
+        o_invoice.customer_bill_address_bld_nr  := v_add.add_build_number;
+        o_invoice.customer_bill_address_local_nr := v_add.add_local_number;
+        o_invoice.customer_bill_address_zip     := v_add.add_zip_name;
+        o_invoice.customer_bill_address_city    := v_add.add_city_name;
+        o_invoice.customer_bill_address_code    := v_add.add_state_name;
+        o_invoice.customer_bill_address_country := v_add.add_country_name;
+        
+    end if;
+    
+    o_invoice.status_code                   := v_inv.inv_iv_code_status;
+    o_invoice.status_name                   := wb_pck_util.translate(p_app_id,v_inv.inv_iv_code_status);
+    o_invoice.create_date                   := v_inv.inv_invoice_date;
+    o_invoice.sell_date                     := v_inv.inv_sell_date;
+    o_invoice.place                         := v_inv.inv_place;
+    o_invoice.payment_type_code             := v_inv.inv_iv_code_payment_method;
+    o_invoice.payment_type_name             := wb_pck_util.translate(p_app_id,v_inv.inv_iv_code_payment_method);
+    o_invoice.due_date                      := v_inv.inv_due_date;
+    o_invoice.memo                          := v_inv.inv_memo;
+    o_invoice.customer_message              := v_inv.inv_message;
+    o_invoice.shiping_price                 := v_inv.inv_shiping_price;
+    
+    o_invoice.bank_acc_number               := v_inv.inv_bank_acc_nr;
+    o_invoice.bank_name                     := v_inv.inv_bank_name;
+   
+    o_invoice.INV_OBJ_STATUS                := v_inv.INV_OBJ_STATUS;
+
+    o_invoice.EXPORT_TYPE                   := v_inv.INV_EXPORT_TYPE;
+    o_invoice.EXPORT_GROSS                  := v_inv.INV_EXPORT_GROSS;  
+    o_invoice.EXPORT_NET                    := v_inv.INV_EXPORT_NET;   
+    o_invoice.EXPORT_COLLI                  := v_inv.INV_EXPORT_COLLI;  
+    o_invoice.EXPORT_PALLETS                := v_inv.INV_EXPORT_PALLETS;
+    o_invoice.CUSTOMER_INVOICE_PATTERN_CODE := v_inv.INV_CUSTOMER_INVOICE_PATTERN ;
+    
+    o_invoice.customer_memo                 := v_inv.inv_memo;
+    o_invoice.paid_amount                   := wb_pck_payments.get_paid_sum (p_app_id,o_invoice.id);--wb_pck_payments.get_open_balance (p_app_id, o_invoice.id);
+    if (is_exists_cr(p_app_id,o_invoice.id)=1) then
+    o_invoice.real_amount                   := wb_pck_invoices_pl.get_real_worth_invoice(p_app_id =>  p_app_id,
+                                                                                         p_inv_id =>  o_invoice.id);
+    else
+     o_invoice.real_amount := null;
+    end if;
+    o_invoice.nip                           := wb_pck_customer_details.get(p_app_id,v_inv.inv_cud_id_purch).cud_nip;
+    
+    o_invoice.created_by_person_id          := v_inv.inv_pe_id_sell;
+    o_invoice.created_by_user_id            := v_inv.inv_us_id_rep;
+    
+    o_invoice.delivery_send_email           := v_inv.inv_be_emailed ;
+    o_invoice.delivery_send_post            := v_inv.inv_be_send_post  ;
+    o_invoice.delivery_print                := v_inv.inv_be_printed; 
+     wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'o_invoice.delivery_print='||o_invoice.delivery_print);
+    
+    o_invoice.inventory_id                  := v_inv.inv_inve_id;
+    
+    o_invoice.original_invoice_id           := v_inv.inv_inv_id; 
+    o_invoice.original_invoice_number       := wb_pck_invoices.get(p_app_id,o_invoice.original_invoice_id,v_exists).inv_number; 
+    
+    o_invoice.inv_ord_id                    := v_inv.inv_ord_id;
+    o_invoice.INV_CU_ID_PARENT              := v_inv.INV_CU_ID_PARENT;
+
+    wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'v_inv.inv_inve_id='||v_inv.inv_inve_id);
+    if(v_inv.inv_inve_id is not null) then
+         
+         o_invoice.inventory_name := wb_pck_inventories.get(p_app_id, v_inv.inv_inve_id, v_exists).inve_name;
+         
+    end if;
+    
+    o_invoice.created_by_person_name        := wb_pck_persons.get_person_name(p_app_id,v_inv.inv_pe_id_sell);
+    if (v_inv.inv_pe_id_purch is not null) then
+    o_invoice.customer_recipent_person      := wb_pck_persons.get_person_name(p_app_id,v_inv.inv_pe_id_purch);
+    else
+    o_invoice.customer_recipent_person      := null;
+    end if;
+
+    o_invoice.advance                   := wb_pck_payments.get_value_advance(p_app_id,o_invoice.id); 
+    o_invoice.inv_group                 := v_inv.inv_group;
+    o_invoice.inv_currency_code         := v_inv.inv_currency_code;
+    o_invoice.INV_EXCH_RATE_TYPE_CODE   := v_inv.INV_EXCH_RATE_TYPE_CODE;
+    o_invoice.INV_CURRENT_EXCHANGE_RATE := v_inv.INV_CURRENT_EXCHANGE_RATE;
+    --wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'o_invoice.INV_TAX_VALUE= '||o_invoice.INV_TAX_VALUE);
+    --wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'o_invoice.INV_BOOK_VALUE_NET= '||o_invoice.INV_BOOK_VALUE_NET);
+ 
+
+    v_i :=1;
+    o_invoice.ITEMS := tinvoice_items();
+    for v_rec in 
+        (
+            select itm.invi_id                 itm_id,
+            itm.invi_invi_id            itm_id_correct,
+            itm.invi_inv_id             itm_invoice_id,
+            itm.invi_pr_id              itm_product_id,
+            itm.invi_name               itm_product_name,
+            itm.invi_desc               itm_memo,
+            itm.invi_iv_code_unit       itm_unit_type_code,
+            txt.txt_display_text    itm_unit_name,
+            itm.invi_count              itm_quantity,
+            itm.invi_price              itm_price,
+            itm.invi_discount_percent   itm_discount_percent,
+            itm.invi_vat_percentage     itm_vat_percentage,
+            itm.invi_vat_code_rate      itm_vat_code_rate,
+            itm.invi_worth_net          itm_worth_net,
+            itm.invi_worth_vat          itm_worth_vat,
+            itm.invi_pkwiu              itm_pkwiu,
+            txt2.txt_display_text   itm_vat_name,
+            itm.invi_order,
+            itm.invi_margin             itm_margin,
+            nvl(itm.invi_worth,itm.invi_worth_net)     itm_worth,
+            itm.invi_worth_vat          itm_vat_value,
+            ord_itm.invi_discount_percent,
+            ord_itm.invi_big_order_discount,
+            ord_itm.invi_payment_discount
+        from in_invoice_items itm,
+            in_invoice_items ord_itm,
+            wbv_text_translations txt,
+            wbv_text_translations txt2
+        where itm.invi_inv_id         = o_invoice.id
+            and itm.invi_app_id         = p_app_id
+            and txt.txt_app_id          = 0 --p_app_id
+            and txt2.txt_app_id         = 0 --p_app_id
+            and txt.txt_code            = itm.invi_iv_code_unit
+            and txt2.txt_code           = itm.invi_vat_txtd_name
+            and itm.invi_is_active      = wb_pck_const.C_IS_ACTIVE$YES
+            and itm.invi_ord_invi_id    = ord_itm.invi_id
+            and itm.invi_app_id         = ord_itm.invi_app_id
+        order by invi_order
+        ) LOOP
+ 
+          v_invoice_item := wb_pck_util.init_tinvoice_item ;
+          o_invoice.ITEMS.extend();
+          wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'v_rec.itm_margin='||v_rec.itm_margin);
+          wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'v_rec.itm_worth='||v_rec.itm_worth);
+          v_invoice_item.item_id         :=  v_rec.itm_id;
+          v_invoice_item.margin          :=  v_rec.itm_margin;
+          v_invoice_item.worth           :=  v_rec.itm_worth;
+          v_invoice_item.item_id_correct :=  v_rec.itm_id_correct;
+          v_invoice_item.invoice_id      :=  v_rec.itm_invoice_id;
+          v_invoice_item.charge_id       :=  null;  
+          v_invoice_item.product_id      :=  v_rec.itm_product_id;
+          v_invoice_item.product_name    :=  v_rec.itm_product_name;
+          v_invoice_item.memo            :=  v_rec.itm_memo;
+          v_invoice_item.unit_type_code  :=  v_rec.itm_unit_type_code;
+          v_invoice_item.unit_type_name  :=  v_rec.itm_unit_name;
+          v_invoice_item.price           :=  v_rec.itm_price;
+          v_invoice_item.quantity        :=  v_rec.itm_quantity;
+          v_invoice_item.discount_percent := v_rec.itm_discount_percent;
+          v_invoice_item.pkwiu            := v_rec.itm_pkwiu;
+          v_invoice_item.vat_name         := v_rec.itm_vat_name;
+          v_invoice_item.vat_code_rate    := v_rec.itm_vat_code_rate;
+          v_invoice_item.vat_percentage   := v_rec.itm_vat_percentage;
+          v_invoice_item.vat_value        := v_rec.itm_vat_value;
+          v_invoice_item.item_order       := v_rec.invi_order;
+          v_invoice_item.gross_price      := v_rec.itm_worth;  
+          v_invoice_item.discount_trade  := v_rec.invi_discount_percent;
+          v_invoice_item.discount_big_order := v_rec.invi_big_order_discount;
+          v_invoice_item.discount_payment_type := v_rec.invi_payment_discount;
+          
+          wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'v_i='||v_i);
+          wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'v_invoice_item.item_id='||v_invoice_item.item_id);
+         
+          o_invoice.ITEMS(v_i) := v_invoice_item;
+          wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'o_invoice.ITEMS(v_i).margin='||o_invoice.ITEMS(v_i).margin);
+          wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'o_invoice.ITEMS(v_i).worth='||o_invoice.ITEMS(v_i).worth);
+          v_i := v_i + 1; 
+      
+     END loop;
+     
+     
+     
+     wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'o_invoice.id='||o_invoice.id);
+     
+     
+    wb_pck_object_utils.get_all_contacts_for_obj(p_app_id   => p_app_id,
+                                                 p_user_id  => p_user_id,
+                                                 p_obj_id   => o_invoice.id,
+                                                 p_obj_type => wb_pck_const.C_OBJ_TYPE_INVOICE ,                                   
+                                                 o_company_contacts  => vtcontacts,
+                                                 o_customer_contacts => o_contacts
+                                                );
+
+wb_pck_log.DEBUG(p_app_id,C_PACKAGE,C_FUN,'END - return_invoice');
+EXCEPTION
+     WHEN OTHERS THEN
+     wb_pck_log.error(p_app_id,C_PACKAGE,'return_invoice','');
+     RAISE;
+
+END return_invoice;*/
+
+PROCEDURE add_or_update(p_app_id in t_id,
+                        p_user_id in t_id,			
+						p_old_promo_id in t_id,
+                        p_promo_new in TPROMOTION,
+						o_new_promo_id out t_id)
+
+IS
+    C_FUN CONSTANT t_name :='add_or_update_2';
+
+	v_new_promo t_saprom;
+	v_new_promo_id t_id;
+	v_old_promo t_saprom;
+--	v_old_promo_id t_id;
+--	v_updated_prom_id t_id;
+	v_exist t_boolean;
+	v_updated_cust_item_id t_id;
+
+BEGIN
+
+	
+    v_new_promo.SAP_IS_ACTIVE := 1;
+    v_new_promo.SAP_CREATE_DATE := TRUNC (SYSDATE);
+    v_new_promo.SAP_is_deleted := p_promo_new.SAP_IS_DELETED;
+	v_new_promo.SAP_G_FK_GROUP := p_promo_new.SAP_G_FK_GROUP;
+	v_new_promo.SAP_INVE_ID := p_promo_new.SAP_INVE_ID;
+	v_new_promo.SAP_CU_TYPE_ID := p_promo_new.SAP_CU_TYPE_ID;
+	v_new_promo.SAP_DESCRIPTION := p_promo_new.SAP_DESCRIPTION;
+	v_new_promo.SAP_START_DATE := p_promo_new.SAP_START_DATE;
+	v_new_promo.SAP_END_DATE := p_promo_new.SAP_END_DATE;	
+--	v_new_promo.SAP_MODIFIED_DATE nvl
+	v_new_promo.SAP_NAME := p_promo_new.SAP_NAME;
+	v_new_promo.SAP_PE_ID_CREATED := p_promo_new.SAP_PE_ID_CREATED;
+	v_new_promo.SAP_APP_ID := p_app_id;
+
+    v_old_promo := get(p_app_id,p_old_promo_id,v_exist);
+    
+     IF v_exist = 0 THEN -- jeśli 0 to nie ma w bazie i dodajemy nowy      
+        null;
+        v_new_promo_id := add(p_app_id,v_new_promo);
+        wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'Dodanie nowej promocji v_new_promo_id: ' || to_char(v_new_promo_id));
+    ELSE
+        -- dezaktywowanie starej promocji
+      --   wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'111111111111');
+          IF v_new_promo.SAP_IS_DELETED = 1 THEN
+            v_new_promo.SAP_IS_ACTIVE := 0;
+
+        ELSE
+            v_new_promo.SAP_IS_ACTIVE := 1;
+        END IF;
+      --   wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'222222222222');
+             v_new_promo_id := add(p_app_id,v_new_promo);
+
+        v_new_promo := get(p_app_id,v_new_promo_id,v_exist);
+        
+        v_old_promo.SAP_IS_ACTIVE := 0;
+        v_old_promo.SAP_MODIFIED_DATE := TRUNC (SYSDATE);
+        
+        v_old_promo.SAP_NEXT_PROM_ID := v_new_promo.SAP_ID;
+       
+        v_updated_cust_item_id := updated(p_app_id, v_old_promo);
+
+    END IF;
+		o_new_promo_id := v_new_promo.SAP_ID;
+    EXCEPTION
+			WHEN OTHERS THEN
+				wb_pck_log.error (p_app_id, C_PACKAGE, C_FUN, '');
+				RAISE;	
+END add_or_update;
+
+
+PROCEDURE modify_promotion (p_app_id in t_id, 
+							p_user_id in t_id,
+							p_old_promo_id in t_id,
+							p_promotion in TPROMOTION)
+IS
+ C_FUN CONSTANT t_name :='modify_promotion';
+ v_new_promo_id t_id;
+ l_prom_cust TPROMOTIONCUST; 
+ 
+BEGIN
+
+	wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' ENTER modify_promotion');
+	
+	-- validate promotion
+	
+	 promotion_validation(p_app_id => p_app_id,
+						  p_user_id => p_user_id,
+						  p_promotion => p_promotion);
+	
+							
+    wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' All promotion validations OK');	
+
+	-- add or delete promotion 
+		
+    add_or_update(p_app_id => p_app_id,
+                  p_user_id => p_user_id,
+                  p_old_promo_id => p_old_promo_id,
+                  p_promo_new => p_promotion,
+                  o_new_promo_id => v_new_promo_id);
+                
+	wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' END add_or_update PROM');
+	
+    -- add or update promotion cust
+			
+    for l_prom_cust in p_promotion.promotion_customers.FIRST..p_promotion.promotion_customers.LAST
+        LOOP
+            WB_PCK_SALES_PROMOTION_CUST.add_or_update(p_app_id => p_app_id,
+                                                        p_user_id => p_user_id,                     
+                                                        p_prom_cust => p_promotion.promotion_customers (l_prom_cust),
+                                                        p_old_promo_id => p_promotion.SAP_ID,
+                                                        p_new_promo_id => v_new_promo_id);
+            
+        END LOOP;					
+        wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' END add_or_update CUSTOMERS');
+				
+	-- add or update promotion items
+		
+        for l_prom_item in p_promotion.promotion_items.FIRST..p_promotion.promotion_items.LAST
+            LOOP
+                null;
+                WB_PCK_SALES_PROMOTION_ITEMS.add_or_update(p_app_id => p_app_id,
+                                                            p_user_id => p_user_id,                      
+                                                            p_old_promo_id => p_promotion.SAP_ID,
+                                                            p_new_promo_id => v_new_promo_id,
+                                                            p_promo_item => p_promotion.promotion_items (l_prom_item));
+            END LOOP;
+            wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' END add_or_update PROM ITEMS');
+					
+		wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' END modify_promotion');							
+	--			
+    EXCEPTION
+        WHEN OTHERS THEN
+            wb_pck_log.error (p_app_id, C_PACKAGE, C_FUN, '');
+        RAISE;				
+END modify_promotion;
+
+PROCEDURE promotion_validation(p_app_id in t_id,
+                               p_user_id in t_id,
+                               p_promotion in TPROMOTION)
+IS
+
+	C_FUN CONSTANT t_name :='promotion_validation';
+
+BEGIN
+	
+	wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' ENTER promotion_validation');
+	
+				   
+					   
+	validate_promotion_name(p_app_id,
+							p_user_id,
+							p_promotion);
+								
+	wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'Validation prom name OK');
+				
+
+	validate_prom_custs(p_app_id,
+						p_user_id,
+						p_promotion);
+						
+	wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' Validation prom cust OK');
+	
+	validate_prom_items(p_app_id,
+						p_user_id,
+						p_promotion);
+	
+	wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' Validation prom items OK');
+	
+
+EXCEPTION
+			WHEN OTHERS THEN
+				wb_pck_log.error (p_app_id, C_PACKAGE, C_FUN, '');
+				RAISE;	
+END promotion_validation;
+
+/*
+-- testing procedure
+
+DECLARE
+    
+        subtype t_id        IS wb_pck_types.t_id;
+        p_app_id t_id := 81100;
+        p_user_id t_id := 1;
+        p_promotion TPROMOTION; 
+    BEGIN
+
+        p_promotion := wb_pck_util.init_TPROMOTION();
+        p_promotion.SAP_ID := 3;
+        p_promotion.SAP_G_FK_GROUP := 'A';
+        p_promotion.SAP_CU_TYPE_ID := 4;
+        p_promotion.SAP_INVE_ID := 2;
+        p_promotion.SAP_START_DATE := TO_DATE('2019/04/18', 'YYYY/MM/DD');
+        p_promotion.SAP_END_DATE := TO_DATE('2019/04/19', 'YYYY/MM/DD');
+        p_promotion.SAP_NAME := 'M3';
+        
+        p_promotion.promotion_items := TPROMOITEMS();
+        p_promotion.promotion_items.extend();
+        p_promotion.promotion_items(1) := wb_pck_util.init_tpromotion_item();
+        p_promotion.promotion_items(1).SAPI_SAP_ID := '123';
+        p_promotion.promotion_items(1).SAPI_PR_CODE := '22';
+       
+       wb_pck_sales_promotion.promotion_validation(81100, 1, p_promotion);
+
+    end;
+
+--wszystkie logi 
+select * from vlog2;
+--select * from vlog2 where log like '%add_or_update_prom_items%';
+
+truncate table tlog; 
+
+*/
+PROCEDURE validate_promotion_name(p_app_id in t_id,
+                                  p_user_id in t_id,
+                                  p_promotion in TPROMOTION)
+
+IS
+v_err VARCHAR(100) := null;
+C_FUN CONSTANT t_name :='promotion_validation_name';
+
+BEGIN
+    BEGIN
+        SELECT SAP_NAME into v_err FROM sa_sales_promotion
+        WHERE SAP_NAME = p_promotion.SAP_NAME
+        and SAP_APP_ID = p_app_id
+        and SAP_IS_ACTIVE = 1;
+    
+         exception
+                WHEN NO_DATA_FOUND THEN   
+                    v_err := null; 
+                    wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' Validate prom cust in promotion_validation_name - OK');
+                when OTHERS then
+                    wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'Unhandled ERR in Validation prom cust!');
+                    wb_pck_util.raise_user_error_txt(p_app_id, 'Unhandled ERR in Validation prom cust!');
+                RAISE;      
+       END;	     
+            IF v_err IS NOT NULL THEN
+                wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'ERR Validation prom cust');
+                wb_pck_util.raise_user_error_txt(p_app_id, 'Promocja o takiej nazwie już istnieje!');
+            END IF;	
+           
+        EXCEPTION
+            WHEN OTHERS THEN
+                wb_pck_log.error (p_app_id, C_PACKAGE, C_FUN, 'Error in validate_promotion_name.');
+            RAISE;	 
+			
+END validate_promotion_name;
+/*
+ DECLARE
+    
+        subtype t_id        IS wb_pck_types.t_id;
+        p_app_id t_id := 81100;
+        p_user_id t_id := 1;
+        p_promotion TPROMOTION; 
+    BEGIN
+
+        p_promotion := wb_pck_util.init_TPROMOTION();
+        p_promotion.SAP_ID := 3;       
+        p_promotion.SAP_NAME := 'M2';
+    
+       wb_pck_sales_promotion.validate_promotion_name(81100, 1, p_promotion);
+
+    end;
+*/
+
+PROCEDURE validate_prom_custs(p_app_id in t_id,
+					   p_user_id in t_id,
+					   p_promotion in TPROMOTION)
+
+IS
+C_FUN CONSTANT t_name :='promotion_validation_cust';
+v_err VARCHAR(100) := null;
+
+BEGIN
+
+-- czy istnieje promocja dla tej samej GRUPY, TYPU i MAGAZYNU!!! w tym samym czasie
+        BEGIN
+            SELECT sa_prom.SAP_NAME into v_err FROM 		
+                sa_sales_promotion sa_prom
+                WHERE sa_prom.SAP_IS_ACTIVE = 1
+                AND sa_prom.SAP_G_FK_GROUP = p_promotion.SAP_G_FK_GROUP
+                AND sa_prom.SAP_CU_TYPE_ID = p_promotion.SAP_CU_TYPE_ID
+                AND sa_prom.SAP_INVE_ID = p_promotion.SAP_INVE_ID
+                
+                AND 
+                (
+                    p_promotion.SAP_START_DATE BETWEEN sa_prom.SAP_START_DATE AND sa_prom.SAP_END_DATE
+                    OR
+                    p_promotion.SAP_END_DATE BETWEEN sa_prom.SAP_START_DATE AND sa_prom.SAP_END_DATE
+                    OR 
+                    sa_prom.SAP_START_DATE BETWEEN p_promotion.SAP_START_DATE AND p_promotion.SAP_END_DATE
+                    OR
+                    sa_prom.SAP_END_DATE BETWEEN  p_promotion.SAP_START_DATE AND p_promotion.SAP_END_DATE
+                ) GROUP BY sa_prom.SAP_NAME;
+                
+            exception
+                WHEN NO_DATA_FOUND THEN   
+                    v_err := null; 
+                    wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' Validate prom cust in promotion_validation_cust - OK');
+                when OTHERS then
+                    wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'Unhandled ERR in Validation prom cust!');
+                    wb_pck_util.raise_user_error_txt(p_app_id, 'Dla wybranego przedziału czasowego, grupy i typu klientów oraz magazynu istnieje inna aktywna promocja!');
+                RAISE;
+         END; 
+            
+            IF v_err IS NOT NULL THEN
+                wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'ERR Validation prom cust');
+                wb_pck_util.raise_user_error_txt(p_app_id, 'Dla wybranego przedziału czasowego, grupy i typu klientów oraz magazynu istnieje inna aktywna promocja o nazwie: ' || v_err);
+            END IF;		
+                      
+            
+	EXCEPTION
+			WHEN OTHERS THEN
+				wb_pck_log.error (p_app_id, C_PACKAGE, C_FUN, 'ERR in validate_prom_custs proc.');
+				RAISE;	
+	end validate_prom_custs;
+			
+-- testing procedure
+/*
+
+    DECLARE
+    
+        subtype t_id        IS wb_pck_types.t_id;
+        p_app_id t_id := 81100;
+        p_user_id t_id := 1;
+        p_promotion TPROMOTION; 
+    BEGIN
+
+        p_promotion := wb_pck_util.init_TPROMOTION();
+        p_promotion.SAP_ID := 3;
+        p_promotion.SAP_G_FK_GROUP := 'A';
+        p_promotion.SAP_CU_TYPE_ID := 4;
+        p_promotion.SAP_INVE_ID := 2;
+        p_promotion.SAP_START_DATE := TO_DATE('2018/04/18', 'YYYY/MM/DD');
+        p_promotion.SAP_END_DATE := TO_DATE('2019/04/19', 'YYYY/MM/DD');
+        
+        p_promotion.promotion_items := TPROMOITEMS();
+      
+
+       wb_pck_sales_promotion.validate_prom_custs(81100, 1, p_promotion);
+
+    end;
+
+--wszystkie logi 
+select * from vlog2;
+--select * from vlog2 where log like '%add_or_update_prom_items%';
+
+truncate table tlog;  
+*/
+
+
+
+PROCEDURE validate_prom_items(p_app_id in t_id,
+								p_user_id in t_id,
+								p_promotion in TPROMOTION)
+
+IS
+C_FUN CONSTANT t_name :='promotion_validation_items';
+v_err VARCHAR(100) := null;
+
+BEGIN
+
+-- czy istnieje PRODUKT w aktywnej promocji dla tej samej GRUPY i TYPU KLIENTA oraz MAGAZYNU!!! (w tym samym czasie)
+
+	for l_prom_item in p_promotion.promotion_items.FIRST..p_promotion.promotion_items.LAST
+		LOOP
+             BEGIN   
+                SELECT sa_prom.SAP_NAME into v_err FROM 		
+                    sa_sales_promotion sa_prom,
+                    sa_sales_promotion_items sa_items
+                    WHERE sa_prom.SAP_IS_ACTIVE = 1
+                    AND sa_prom.SAP_G_FK_GROUP = p_promotion.SAP_G_FK_GROUP
+                    AND sa_prom.SAP_CU_TYPE_ID = p_promotion.SAP_CU_TYPE_ID
+                    AND sa_prom.SAP_INVE_ID = p_promotion.SAP_INVE_ID
+                    
+                    AND 
+                    (
+                        p_promotion.SAP_START_DATE BETWEEN sa_prom.SAP_START_DATE AND sa_prom.SAP_END_DATE
+                        OR
+                        p_promotion.SAP_END_DATE BETWEEN sa_prom.SAP_START_DATE AND sa_prom.SAP_END_DATE
+                        OR 
+                        sa_prom.SAP_START_DATE BETWEEN p_promotion.SAP_START_DATE AND p_promotion.SAP_END_DATE
+                        OR
+                        sa_prom.SAP_END_DATE BETWEEN  p_promotion.SAP_START_DATE AND p_promotion.SAP_END_DATE
+                    ) 
+                    AND 
+                    sa_prom.SAP_ID =  sa_items.SAPI_SAP_ID
+                    AND 
+                    sa_items.SAPI_PR_CODE = p_promotion.promotion_items (l_prom_item).SAPI_PR_CODE
+                    GROUP BY sa_prom.SAP_NAME;
+                    
+                 exception
+                    WHEN NO_DATA_FOUND THEN   
+                        v_err := null; 
+                        wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,' Validate prom ITEMS in promotion_validation_items - OK');
+                    when OTHERS then
+                        wb_pck_log.debug (p_app_id,C_PACKAGE,C_FUN,'Unhandled ERR in Validation prom items!');                       
+                    RAISE;
+            END;         
+                    IF v_err IS NOT NULL THEN
+                         wb_pck_util.raise_user_error_txt(p_app_id, 'Co najmniej jeden z produktów znajduje się na aktywnej w tym samym czasie promocji o nazwie: ' || v_err);
+                    END IF;		
+		END LOOP;
+			
+
+	EXCEPTION
+			WHEN OTHERS THEN
+				wb_pck_log.error (p_app_id, C_PACKAGE, C_FUN, '');
+				RAISE;	
+				
+END validate_prom_items;		
+
+/*
+  DECLARE
+    
+        subtype t_id        IS wb_pck_types.t_id;
+        p_app_id t_id := 81100;
+        p_user_id t_id := 1;
+        p_promotion TPROMOTION; 
+    BEGIN
+
+        p_promotion := wb_pck_util.init_TPROMOTION();
+        p_promotion.SAP_ID := 3;
+        p_promotion.SAP_G_FK_GROUP := 'A';
+        p_promotion.SAP_CU_TYPE_ID := 4;
+        p_promotion.SAP_INVE_ID := 2;
+        p_promotion.SAP_START_DATE := TO_DATE('2019/04/18', 'YYYY/MM/DD');
+        p_promotion.SAP_END_DATE := TO_DATE('2019/04/19', 'YYYY/MM/DD');
+        
+        p_promotion.promotion_items := TPROMOITEMS();
+        p_promotion.promotion_items.extend();
+        p_promotion.promotion_items(1) := wb_pck_util.init_tpromotion_item();
+        p_promotion.promotion_items(1).SAPI_SAP_ID := '123';
+        p_promotion.promotion_items(1).SAPI_PR_CODE := '22';
+       
+       wb_pck_sales_promotion.validate_prom_items(81100, 1, p_promotion);
+
+    end;
+
+--wszystkie logi 
+select * from vlog2;
+--select * from vlog2 where log like '%add_or_update_prom_items%';
+
+truncate table tlog; 
+*/
+
+
+END WB_PCK_SALES_PROMOTION;
+/
